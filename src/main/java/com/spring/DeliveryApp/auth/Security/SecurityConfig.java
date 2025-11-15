@@ -49,7 +49,6 @@ public class SecurityConfig {
                         .requestMatchers("/topic/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
-//                        .requestMatchers("/student/**").hasRole("STUDENT")
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session

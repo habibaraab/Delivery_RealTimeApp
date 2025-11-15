@@ -1,5 +1,6 @@
 package com.spring.DeliveryApp.Service;
 
+import com.spring.DeliveryApp.DTOs.DeliveryCompletionDTO;
 import com.spring.DeliveryApp.DTOs.OrderItemDTO;
 import com.spring.DeliveryApp.DTOs.OrderRequestDTO;
 import com.spring.DeliveryApp.DTOs.OrderResponseDTO;
@@ -63,7 +64,7 @@ public class OrderService {
     }
 
     // دالة مساعدة لتحويل Order إلى DTO
-    private OrderResponseDTO convertToDto(Order order) {
+    public OrderResponseDTO convertToDto(Order order) {
         OrderResponseDTO dto = new OrderResponseDTO();
         dto.setId(order.getId());
         dto.setCustomerName(order.getCustomer().getName());
@@ -108,5 +109,50 @@ public class OrderService {
         messagingTemplate.convertAndSend("/topic/drivers/new-orders", orderDto);
 
         System.out.println("✅ تم بث الطلب رقم " + order.getId() + " لـ " + availableDrivers.size() + " سائقين متاحين.");
+    }
+
+    @Transactional
+    public void completeDelivery(DeliveryCompletionDTO completionDto) {
+
+        Order order = orderRepository.findById(completionDto.getOrderId())
+                .orElseThrow(() -> new RuntimeException("الطلب غير موجود."));
+
+        // 1. التحقق الأمني: يجب التأكد أن السائق الذي ينهي الطلب هو السائق المعين.
+        if (order.getDriver() == null || !completionDto.getDriverId().equals(order.getDriver().getId())) {
+            throw new SecurityException("السائق غير مصرح له بإنهاء هذا الطلب.");
+        }
+
+        // 2. تحديث الحالة
+        order.setStatus(OrderStatus.DELIVERED);
+        orderRepository.save(order);
+
+        // 3. إرسال إشعارات WebSocket نهائية:
+
+        // إشعار العميل: تم التوصيل (المسار: /user/{customerId}/queue/notifications)
+        String customerMsg = "تم توصيل طلبك رقم " + order.getId() + " بنجاح. شكراً لاستخدامك خدمتنا.";
+        messagingTemplate.convertAndSendToUser(
+              String.valueOf(  order.getCustomer().getId()),
+                "/queue/notifications",
+                customerMsg
+        );
+
+        // إشعار السائق: تم إغلاق الطلب (المسار: /user/{driverId}/queue/notifications)
+        String driverMsg = "تم إنهاء الطلب رقم " + order.getId() + ". المبلغ المستحق: " + order.getAcceptedBid();
+        messagingTemplate.convertAndSendToUser(
+                String.valueOf(  order.getDriver().getId()),
+                "/queue/notifications",
+                driverMsg
+        );
+
+        // 4. خطوة إضافية: إشعار العميل بأن التتبع قد انتهى
+        // (هذا يوقف تطبيق العميل عن محاولة تحديث الخريطة)
+        String trackingEndMsg = "TRACKING_END";
+        messagingTemplate.convertAndSendToUser(
+                String.valueOf(order.getCustomer().getId()),
+                "/queue/track/" + order.getId(),
+                trackingEndMsg
+        );
+
+        System.out.println("✅ تم إنهاء الطلب رقم " + order.getId() + " بنجاح.");
     }
 }
