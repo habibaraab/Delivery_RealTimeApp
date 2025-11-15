@@ -1,6 +1,7 @@
 package com.spring.DeliveryApp.Event;
 
 import com.spring.DeliveryApp.Service.UserService;
+import com.spring.DeliveryApp.auth.Security.AuthChannelInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
@@ -22,8 +23,7 @@ public class WebSocketEventListener {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
 
         // معرف المستخدم يتم تخزينه في الجلسة عند عملية المصادقة الأولية (افتراضياً)
-        String userId = (String) headerAccessor.getSessionAttributes().get("userId");
-
+        String userId = (String) headerAccessor.getSessionAttributes().get(AuthChannelInterceptor.USER_ID_SESSION_ATTRIBUTE);
 
 
         if (userId != null) {
@@ -41,8 +41,7 @@ public class WebSocketEventListener {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
 
         // استعادة معرف المستخدم من سمات الجلسة
-        String userId = (String) headerAccessor.getSessionAttributes().get("userId");
-
+        String userId = (String) headerAccessor.getSessionAttributes().get(AuthChannelInterceptor.USER_ID_SESSION_ATTRIBUTE);
         if (userId != null) {
             int userIdInt = Integer.parseInt(userId);
 
