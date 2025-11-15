@@ -31,13 +31,17 @@ public class OrderService {
         User customer = userRepository.findById(request.getCustomerId())
                 .orElseThrow(() -> new RuntimeException("العميل غير موجود: " + request.getCustomerId()));
 
+        // 1. تحويل DTO إلى Model وحفظه بالإحداثيات
         Order newOrder = new Order();
         newOrder.setCustomer(customer);
-        newOrder.setPickupLocation(request.getPickupLocation());
-        newOrder.setDropoffLocation(request.getDropoffLocation());
+        newOrder.setPickupLatitude(request.getPickupLatitude());
+        newOrder.setPickupLongitude(request.getPickupLongitude());
+        newOrder.setDropoffLatitude(request.getDropoffLatitude());
+        newOrder.setDropoffLongitude(request.getDropoffLongitude());
         newOrder.setDeliveryFee(request.getDeliveryFee());
         newOrder.setStatus(OrderStatus.BIDDING);
 
+        // ربط محتويات الطلب (Items)
         List<OrderItem> items = request.getItems().stream()
                 .map(itemDto -> {
                     OrderItem item = new OrderItem();
@@ -45,7 +49,7 @@ public class OrderService {
                     item.setWeightKg(itemDto.getWeightKg());
                     item.setLengthCm(itemDto.getLengthCm());
                     item.setWidthCm(itemDto.getWidthCm());
-                    item.setOrder(newOrder); // ربط المنتج بالطلب
+                    item.setOrder(newOrder);
                     return item;
                 }).collect(Collectors.toList());
 
@@ -63,8 +67,13 @@ public class OrderService {
         OrderResponseDTO dto = new OrderResponseDTO();
         dto.setId(order.getId());
         dto.setCustomerName(order.getCustomer().getName());
-        dto.setPickupLocation(order.getPickupLocation());
-        dto.setDropoffLocation(order.getDropoffLocation());
+
+        // نقل الإحداثيات إلى DTO
+        dto.setPickupLatitude(order.getPickupLatitude());
+        dto.setPickupLongitude(order.getPickupLongitude());
+        dto.setDropoffLatitude(order.getDropoffLatitude());
+        dto.setDropoffLongitude(order.getDropoffLongitude());
+
         dto.setDeliveryFee(order.getDeliveryFee());
         dto.setStatus(order.getStatus().name());
         if (order.getDriver() != null) {

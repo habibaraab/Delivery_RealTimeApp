@@ -26,13 +26,20 @@ public class Order {
     @JoinColumn(name = "driver_id")
     private User driver;
 
-    private String pickupLocation;
-    private String dropoffLocation;
+    // إحداثيات مكان الاستلام
+    private double pickupLatitude;
+    private double pickupLongitude;
+
+    // إحداثيات مكان التسليم
+    private double dropoffLatitude;
+    private double dropoffLongitude;
+
     private double deliveryFee;
     private Double acceptedBid;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items;
+
     @Enumerated(EnumType.STRING)
     private OrderStatus status;
 

@@ -11,8 +11,13 @@ import java.util.List;
 public class OrderResponseDTO {
     private Long id;
     private String customerName;
-    private String pickupLocation;
-    private String dropoffLocation;
+
+    // إحداثيات الطلب في الاستجابة
+    private double pickupLatitude;
+    private double pickupLongitude;
+    private double dropoffLatitude;
+    private double dropoffLongitude;
+
     private double deliveryFee;
     private String status;
     private String assignedDriverName;

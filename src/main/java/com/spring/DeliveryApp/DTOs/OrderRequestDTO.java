@@ -18,11 +18,17 @@ public class OrderRequestDTO {
     @NotBlank(message = "معرف العميل مطلوب")
     private Integer customerId;
 
-    @NotBlank(message = "مكان الاستلام مطلوب")
-    private String pickupLocation;
+    // إحداثيات مكان الاستلام (يتم اختيارها من الخريطة)
+    @NotNull(message = "خط عرض الاستلام مطلوب")
+    private Double pickupLatitude;
+    @NotNull(message = "خط طول الاستلام مطلوب")
+    private Double pickupLongitude;
 
-    @NotBlank(message = "مكان التسليم مطلوب")
-    private String dropoffLocation;
+    // إحداثيات مكان التسليم
+    @NotNull(message = "خط عرض التسليم مطلوب")
+    private Double dropoffLatitude;
+    @NotNull(message = "خط طول التسليم مطلوب")
+    private Double dropoffLongitude;
 
     @NotNull(message = "رسوم التوصيل التقديرية مطلوبة")
     private Double deliveryFee;
