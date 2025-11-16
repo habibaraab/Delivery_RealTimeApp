@@ -12,15 +12,10 @@ import org.springframework.stereotype.Controller;
 @RequiredArgsConstructor
 public class BiddingController {
 
-    private final BiddingService biddingService; // الخدمة التي ستحفظ وتُشعر العميل
+    private final BiddingService biddingService;
 
-    /**
-     * يستقبل عروض المزايدة من السائقين عبر WebSocket
-     * العميل يرسل إلى: /app/bid/submit
-     */
+
     @MessageMapping("/bid/submit")
     public void submitBid(@Valid @Payload BidRequestDTO bidRequest) {
-        // يتم تمرير العرض إلى خدمة المزايدة
         biddingService.processBid(bidRequest);
-    }
-}
+    }}

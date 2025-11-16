@@ -15,7 +15,6 @@ import java.util.List;
 @AllArgsConstructor
 public class OrderRequestDTO {
 
-    @NotBlank(message = "معرف العميل مطلوب")
     private Integer customerId;
 
     // إحداثيات مكان الاستلام (يتم اختيارها من الخريطة)

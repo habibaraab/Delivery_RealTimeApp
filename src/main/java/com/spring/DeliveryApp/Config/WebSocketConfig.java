@@ -1,7 +1,6 @@
 package com.spring.DeliveryApp.Config;
 
 import com.spring.DeliveryApp.auth.Security.AuthChannelInterceptor;
-import com.spring.DeliveryApp.auth.Security.HttpHandshakeInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
@@ -16,18 +15,11 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final AuthChannelInterceptor authChannelInterceptor;
-    private final HttpHandshakeInterceptor httpHandshakeInterceptor;
+
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        // وسيط بسيط (Simple Broker): لبث الرسائل من الخادم للعملاء.
-        // /topic/drivers: مسار عام للسائقين (لبث الطلبات الجديدة)
-        // /user: مسار خاص (لتحديثات الطلب والتتبع الفردية)
         registry.enableSimpleBroker("/topic", "/user");
-
-        // مسار الوجهة من العميل إلى المتحكم (يُستخدم لتقديم العروض)
         registry.setApplicationDestinationPrefixes("/app");
-
-        // البادئة للمسارات الخاصة بالمستخدمين
         registry.setUserDestinationPrefix("/user");
     }
 
@@ -35,11 +27,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns("*")
-                .addInterceptors(httpHandshakeInterceptor)
                 .withSockJS();
     }
 
-
+// TO secure messages
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.interceptors(authChannelInterceptor);

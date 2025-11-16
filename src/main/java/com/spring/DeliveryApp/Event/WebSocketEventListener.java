@@ -15,39 +15,32 @@ public class WebSocketEventListener {
 
     private final UserService userService;
 
-    /**
-     * معالجة حدث اتصال مستخدم جديد (عند فتح جلسة WebSocket)
-     */
     @EventListener
     public void handleWebSocketConnectListener(SessionConnectedEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
 
-        // معرف المستخدم يتم تخزينه في الجلسة عند عملية المصادقة الأولية (افتراضياً)
-        String userId = (String) headerAccessor.getSessionAttributes().get(AuthChannelInterceptor.USER_ID_SESSION_ATTRIBUTE);
-
+        // Fetch the username from Principal (which was set by AuthChannelInterceptor)
+        String userId = null;
+        if (headerAccessor.getUser() != null) {
+            userId = headerAccessor.getUser().getName();
+        }
 
         if (userId != null) {
-            int userIdInt = Integer.parseInt(userId);
-            // تحديث حالة المستخدم إلى متصل ومتاح
-            userService.updateUserAvailability(userIdInt, true);
+            userService.updateUserAvailability(userId, true);
         }
     }
 
-    /**
-     * معالجة حدث انقطاع اتصال مستخدم (عند إغلاق الجلسة)
-     */
     @EventListener
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
 
-        // استعادة معرف المستخدم من سمات الجلسة
-        String userId = (String) headerAccessor.getSessionAttributes().get(AuthChannelInterceptor.USER_ID_SESSION_ATTRIBUTE);
-        if (userId != null) {
-            int userIdInt = Integer.parseInt(userId);
+        String userId = null;
+        if (headerAccessor.getUser() != null) {
+            userId = headerAccessor.getUser().getName();
+        }
 
-            // تحديث حالة المستخدم إلى غير متاح
-            userService.updateUserAvailability(userIdInt, false);
-            // ملاحظة: يمكن هنا إضافة منطق للتعامل مع الطلبات النشطة للسائق الذي انقطع اتصاله.
+        if (userId != null) {
+            userService.updateUserAvailability(userId, false);
         }
     }
 }

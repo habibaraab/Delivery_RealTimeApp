@@ -6,7 +6,7 @@ import com.spring.DeliveryApp.Repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
-
+//To Track live location
 @Service
 @RequiredArgsConstructor
 public class TrackingService {
@@ -15,32 +15,32 @@ public class TrackingService {
     private final SimpMessagingTemplate messagingTemplate;
 
     /**
-     * تعالج تحديث موقع السائق وتبث الإحداثيات للعميل الخاص بالطلب.
-     * @param locationDto الإحداثيات المرسلة من السائق
+     * Processes the driver's location update and broadcasts the coordinates to the order's customer.
+     *  locationDto The coordinates sent by the driver
      */
     public void processDriverLocation(LocationUpdateDTO locationDto) {
 
         Order order = orderRepository.findById(locationDto.getOrderId())
-                .orElseThrow(() -> new RuntimeException("الطلب غير موجود."));
+                .orElseThrow(() -> new RuntimeException("Order not found."));
 
-        // التحقق الأمني: يجب التأكد أن السائق الذي يرسل التحديث هو السائق المعين للطلب
+        // Security Check: Must ensure the driver sending the update is the one assigned to the order
         if (order.getDriver() == null || !locationDto.getDriverId().equals(order.getDriver().getId())) {
-            throw new SecurityException("السائق غير مصرح له بتحديث موقع هذا الطلب.");
+            throw new SecurityException("Driver is not authorized to update the location for this order.");
         }
 
-        // إرسال الإحداثيات كرسالة خاصة للمستخدم (العميل) صاحب الطلب
-        // المسار: /user/{customerId}/queue/track/{orderId}
-        // العميل يجب أن يشترك في هذا المسار لتلقي تحديثات الخريطة
+        // Send the coordinates as a private message to the order owner (customer)
+        // Path: /user/{customerId}/queue/track/{orderId}
+        // The customer must subscribe to this path to receive map updates
         String destination = "/queue/track/" + order.getId();
 
-        // نرسل الـ DTO (الذي يحتوي على الإحداثيات) مباشرة
+        // We send the DTO (which contains the coordinates) directly
         messagingTemplate.convertAndSendToUser(
                 String.valueOf(order.getCustomer().getId()),
                 destination,
                 locationDto
         );
 
-        System.out.println(String.format("✅ بث موقع (Lat: %.4f, Lon: %.4f) للعميل على الطلب %d",
+        System.out.println(String.format("Broadcasting location (Lat: %.4f, Lon: %.4f) to customer for order %d",
                 locationDto.getLatitude(), locationDto.getLongitude(), order.getId()));
     }
 }

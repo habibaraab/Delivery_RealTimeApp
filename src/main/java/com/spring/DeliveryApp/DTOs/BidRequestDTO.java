@@ -7,10 +7,8 @@ import lombok.Data;
 
 @Data
 public class BidRequestDTO {
-    @NotNull(message = "معرف الطلب مطلوب")
     private Long orderId;
 
-    @NotBlank(message = "معرف السائق مطلوب")
     private Integer driverId;
 
     @Positive(message = "يجب أن يكون مبلغ العرض قيمة موجبة")

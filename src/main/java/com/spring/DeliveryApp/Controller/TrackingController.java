@@ -14,10 +14,6 @@ public class TrackingController {
 
     private final TrackingService trackingService;
 
-    /**
-     * يستقبل تحديثات الموقع من تطبيق السائق عبر WebSocket
-     * السائق يرسل إلى: /app/track/update-location
-     */
     @MessageMapping("/track/update-location")
     public void handleDriverLocationUpdate(@Valid @Payload LocationUpdateDTO locationUpdate) {
         trackingService.processDriverLocation(locationUpdate);

@@ -12,8 +12,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Map;
 
+//Bridging HTTP to WebSocket (Secure jwt)
 @Component
 @RequiredArgsConstructor
 public class AuthChannelInterceptor implements ChannelInterceptor {
@@ -21,61 +21,24 @@ public class AuthChannelInterceptor implements ChannelInterceptor {
     private final JwtService jwtService;
     private final UserDetailsServiceImpl userDetailsService;
 
-    // اسم السمة الذي سنستخدمه لتخزين معرف المستخدم
     public static final String USER_ID_SESSION_ATTRIBUTE = "userId";
-
-//    @Override
-//    public Message<?> preSend(Message<?> message, MessageChannel channel) {
-//        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
-//
-//        // التحقق فقط عند محاولة الاتصال (CONNECT)
-//        if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-//
-//            // 1. استخراج JWT من رؤوس STOMP (العميل يرسله عادة في رأس "Authorization" أو رأس مخصص)
-//            // نفترض هنا أن العميل يرسله كرأس "Authorization: Bearer <token>"
-//            List<String> authorization = accessor.getNativeHeader("Authorization");
-//
-//            if (authorization != null && !authorization.isEmpty()) {
-//                String token = authorization.get(0).substring(7); // إزالة "Bearer "
-//                String username = jwtService.extractUsername(token);
-//
-//                if (username != null) {
-//                    UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-//
-//                    // 2. التحقق من صحة الرمز المميز
-//                    if (jwtService.isTokenValid(token, userDetails)) {
-//
-//                        // 3. إنشاء كائن Authentication
-//                        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-//                                userDetails,
-//                                null,
-//                                userDetails.getAuthorities()
-//                        );
-//
-//                        // 4. تعيين Authentication للجلسة (يستخدمه Spring Security)
-//                        accessor.setUser(auth);
-//
-//                        // 5. **الأهم:** تخزين معرف المستخدم في سمات الجلسة (لـ WebSocketEventListener)
-//                        // هذا هو ما يحتاجه UserService لتحديد من قام بالاتصال/الانقطاع
-//                        Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
-//                        sessionAttributes.put(USER_ID_SESSION_ATTRIBUTE, username);
-//
-//                        System.out.println("✅ تم مصادقة مستخدم WebSocket: " + username);
-//                    }
-//                }
-//            }
-//        }
-//        return message;
-//    }
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
 
+        // 1. Handle Initial Connection (CONNECT Command)
         if (StompCommand.CONNECT.equals(accessor.getCommand())) {
 
-            // 1. قراءة الرمز المميز من سمات الجلسة (التي تم جلبها من URL في الخطوة 1)
-            String token = (String) accessor.getSessionAttributes().get(HttpHandshakeInterceptor.TOKEN_KEY);
+            List<String> authorizationHeaders = accessor.getNativeHeader("Authorization");
+            String token = null;
+
+            if (authorizationHeaders != null && !authorizationHeaders.isEmpty()) {
+                String fullToken = authorizationHeaders.get(0);
+                if (fullToken != null && fullToken.startsWith("Bearer ")) {
+                    token = fullToken.substring(7); // Extract token after "Bearer "
+                }
+            }
 
             if (token != null) {
                 try {
@@ -84,29 +47,33 @@ public class AuthChannelInterceptor implements ChannelInterceptor {
                     if (username != null) {
                         UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-                        // 2. التحقق من صحة الرمز المميز
                         if (jwtService.isTokenValid(token, userDetails)) {
 
-                            // 3. تعيين Authentication و userId لجلسة STOMP
+                            // 2. Create and Set Authentication Context
                             UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                                     userDetails, null, userDetails.getAuthorities());
 
-                            accessor.setUser(auth);
-                            accessor.getSessionAttributes().put(USER_ID_SESSION_ATTRIBUTE, username);
+                            accessor.setUser(auth); // Assign Principal to the STOMP session
 
-                            System.out.println("✅ تم مصادقة مستخدم WebSocket (عبر URL): " + username);
+                            // (The manual SecurityContextHolder setting was removed in the final stable fix, as accessor.setUser is generally enough
+                            // when SecurityContextChannelInterceptor is also used or the logic is clean)
+
+                            System.out.println("WebSocket user successfully authenticated: " + username);
+                        } else {
+                            System.err.println(" JWT token is invalid or expired.");
+                            return null;
                         }
                     }
                 } catch (Exception e) {
-                    System.err.println("❌ فشل مصادقة STOMP: " + e.getMessage());
-                    // إذا فشلت المصادقة، يجب رفض الاتصال
+                    System.err.println(" STOMP authentication failed: " + e.getMessage());
                     return null;
                 }
             } else {
-
-                 return null;
+                System.err.println(" Connection rejected: Authorization header missing or malformed.");
+                return null;
             }
         }
         return message;
     }
+
 }

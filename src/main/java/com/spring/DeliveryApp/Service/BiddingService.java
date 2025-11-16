@@ -28,76 +28,76 @@ public class BiddingService {
     @Transactional
     public void processBid(BidRequestDTO request) {
 
-        // 1. التحقق من وجود الطلب والسائق
+        // 1. Check for the existence of the order and driver
         Order order = orderRepository.findById(request.getOrderId())
-                .orElseThrow(() -> new RuntimeException("الطلب غير موجود."));
+                .orElseThrow(() -> new RuntimeException("Order not found."));
 
         User driver = userRepository.findById(request.getDriverId())
-                .orElseThrow(() -> new RuntimeException("السائق غير موجود."));
+                .orElseThrow(() -> new RuntimeException("Driver not found."));
 
-        // 2. حفظ العرض في قاعدة البيانات
+        // 2. Save the bid to the database
         Bid newBid = new Bid();
         newBid.setOrderId(order.getId());
         newBid.setDriver(driver);
         newBid.setBidAmount(request.getBidAmount());
         bidRepository.save(newBid);
 
-        // 3. إرسال إشعار فوري للعميل صاحب الطلب (رسالة خاصة)
-        // ليعلم أن هناك عرض مزايدة جديداً.
+        // 3. Send an instant notification to the order owner (private message)
+        // to inform them about a new bidding offer.
 
-        // المسار: /user/{customerId}/queue/bids
+        // Path: /user/{customerId}/queue/bids
         String destination = "/queue/bids";
 
-        // الحمولة: يمكن أن تكون BidResponseDTO أو مجرد إشعار
-        String notificationMessage = String.format("عرض جديد على طلبك رقم %d من السائق %s بمبلغ %.2f",
+        // Payload: Can be BidResponseDTO or just a notification
+        String notificationMessage = String.format("New bid on your order No. %d from driver %s for amount %.2f",
                 order.getId(), driver.getName(), request.getBidAmount());
 
-        // الإرسال الخاص للمستخدم (العميل)
+        // Private send to the user (customer)
         messagingTemplate.convertAndSendToUser(
                 String.valueOf(order.getCustomer().getId()),
                 destination,
                 notificationMessage
         );
 
-        System.out.println("✅ تم إشعار العميل " + order.getCustomer().getName() + " بعرض جديد.");
+        System.out.println(" Customer " + order.getCustomer().getName() + " notified of a new bid.");
     }
 
     @Transactional
     public OrderResponseDTO acceptBid(BidAcceptanceDTO acceptance) {
 
         Order order = orderRepository.findById(acceptance.getOrderId())
-                .orElseThrow(() -> new RuntimeException("الطلب غير موجود."));
+                .orElseThrow(() -> new RuntimeException("Order not found."));
 
         Bid acceptedBid = bidRepository.findById(acceptance.getAcceptedBidId())
-                .orElseThrow(() -> new RuntimeException("العرض غير موجود."));
+                .orElseThrow(() -> new RuntimeException("Bid not found."));
 
-        // 2. تحديث الطلب وحالته
+        // 2. Update the order and its status
         order.setStatus(OrderStatus.ACCEPTED);
         order.setDriver(acceptedBid.getDriver());
         order.setAcceptedBid(acceptedBid.getBidAmount());
         Order updatedOrder = orderRepository.save(order);
 
-        // 3. إشعار السائق الفائز عبر WebSocket
-        String driverNotification = "تهانينا! تم قبول عرضك لتوصيل الطلب رقم " + order.getId() + ". يرجى الانتقال إلى موقع الاستلام.";
-        // المسار الخاص للسائق: /user/{driverId}/queue/notifications
+        // 3. Notify the winning driver via WebSocket
+        String driverNotification = "Congratulations! Your bid has been accepted for order No. " + order.getId() + ". Please proceed to the pickup location.";
+        // Driver private path: /user/{driverId}/queue/notifications
         messagingTemplate.convertAndSendToUser(
                 String.valueOf(order.getDriver().getId()),
                 "/queue/notifications",
                 driverNotification
         );
 
-        // 4. إشعار العميل بتعيين السائق
-        String customerNotification = "تم تعيين السائق " + order.getDriver().getName() + " لطلبك. يمكنك الآن تتبع موقعه فورياً.";
-        // المسار الخاص للعميل: /user/{customerId}/queue/notifications
+        // 4. Notify the customer about the driver assignment
+        String customerNotification = "Driver " + order.getDriver().getName() + " has been assigned to your order. You can now track their location instantly.";
+        // Customer private path: /user/{customerId}/queue/notifications
         messagingTemplate.convertAndSendToUser(
                 String.valueOf( order.getCustomer().getId()),
                 "/queue/notifications",
                 customerNotification
         );
 
-        System.out.println("✅ تم قبول العرض رقم " + acceptedBid.getId() + " للطلب " + order.getId());
+        System.out.println(" Bid No. " + acceptedBid.getId() + " accepted for order " + order.getId());
 
-        // نستخدم دالة التحويل لضمان أن الاستجابة تحتوي على الإحداثيات المحدثة
+        // We use the conversion function to ensure the response contains the updated coordinates
         return orderService.convertToDto(updatedOrder);
     }
 }

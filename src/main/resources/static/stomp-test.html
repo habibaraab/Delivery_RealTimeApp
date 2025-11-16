@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>STOMP/WebSocket Delivery Test Client</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.0/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        #log { border: 1px solid #ccc; height: 300px; overflow-y: scroll; padding: 10px; margin-top: 10px; }
+        .success { color: green; }
+        .error { color: red; }
+        .controls { margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+<h2>STOMP/WebSocket Test Client</h2>
+
+<div class="controls">
+    <h3>Connection & Identity</h3>
+    <label for="jwtToken">JWT Token (Bearer Token):</label>
+    <input type="text" id="jwtToken" size="80" placeholder="Enter your JWT Token here">
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()" disabled id="disconnectButton">Disconnect</button>
+</div>
+
+<div class="controls">
+    <h3>Subscriptions (Receive Data)</h3>
+    <button onclick="subscribeToPublic()" disabled id="subscribePublicButton">Subscribe to /topic/drivers/new-orders (Driver)</button>
+    <button onclick="subscribeToPrivateBids()" disabled id="subscribePrivateButton">Subscribe to /user/queue/bids (Client Bids)</button>
+</div>
+
+<div class="controls">
+    <h3>Send Bid (Simulate Driver Action)</h3>
+    <label for="bidOrderId">Order ID:</label>
+    <input type="number" id="bidOrderId" placeholder="1" style="width: 60px;">
+
+    <label for="bidDriverId">Driver ID (Your Username):</label>
+    <input type="text" id="bidDriverId" placeholder="driverX" style="width: 100px;">
+
+    <label for="bidAmount">Bid Amount:</label>
+    <input type="number" id="bidAmount" placeholder="45.0" style="width: 80px;">
+
+    <button onclick="sendBid()" disabled id="sendBidButton">Send Bid</button>
+</div>
+
+<div id="log"></div>
+
+<script>
+    // Connection settings
+    const WEBSOCKET_URL = "http://localhost:9090/ws";
+    const LOG_ELEMENT = document.getElementById('log');
+    let stompClient = null;
+
+    function log(message, className = '') {
+        const time = new Date().toLocaleTimeString();
+        LOG_ELEMENT.innerHTML += `<p class="${className}">[${time}] ${message}</p>`;
+        LOG_ELEMENT.scrollTop = LOG_ELEMENT.scrollHeight;
+    }
+
+    function setControlsDisabled(disabled) {
+        document.getElementById('disconnectButton').disabled = disabled;
+        document.getElementById('subscribePublicButton').disabled = disabled;
+        document.getElementById('subscribePrivateButton').disabled = disabled;
+        document.getElementById('sendBidButton').disabled = disabled;
+    }
+
+    function connect() {
+        const token = document.getElementById('jwtToken').value.trim();
+        if (!token) {
+            log('Please enter a valid JWT Token.', 'error');
+            return;
+        }
+
+        const socket = new SockJS(WEBSOCKET_URL);
+        stompClient = Stomp.over(socket);
+
+        const headers = {
+            'Authorization': 'Bearer ' + token
+        };
+
+        stompClient.connect(headers, function (frame) {
+            log('✅ Connection successful: ' + frame, 'success');
+            setControlsDisabled(false);
+        }, function (error) {
+            log('❌ Connection failed: ' + error, 'error');
+            setControlsDisabled(true);
+        });
+    }
+
+    function disconnect() {
+        if (stompClient !== null) {
+            stompClient.disconnect(function() {
+                log('Disconnected successfully.');
+                setControlsDisabled(true);
+            });
+        }
+    }
+
+    function subscribeToPublic() {
+        if (stompClient && stompClient.connected) {
+            stompClient.subscribe('/topic/drivers/new-orders', function (message) {
+                log('🟢 BROADCAST (Driver): New order broadcast received: ' + message.body, 'success');
+            });
+            log('Subscribed to /topic/drivers/new-orders');
+        } else {
+            log('You must connect first.', 'error');
+        }
+    }
+
+    function subscribeToPrivateBids() {
+        if (stompClient && stompClient.connected) {
+            stompClient.subscribe('/user/queue/bids', function (message) {
+                log('🔔 PRIVATE (Client): New bid received! ' + message.body, 'success');
+            });
+            log('Subscribed to /user/queue/bids (Client Notification)');
+        } else {
+            log('You must connect first.', 'error');
+        }
+    }
+
+    function sendBid() {
+        const orderId = document.getElementById('bidOrderId').value;
+        const driverId = document.getElementById('bidDriverId').value.trim();
+        const bidAmount = document.getElementById('bidAmount').value;
+
+        if (!stompClient || !stompClient.connected || !orderId || !driverId || !bidAmount) {
+            log('Error: Missing Order ID, Driver ID, or Bid Amount.', 'error');
+            return;
+        }
+
+        const bidMessage = JSON.stringify({
+            "orderId": parseInt(orderId),
+            "driverId": driverId,
+            "bidAmount": parseFloat(bidAmount)
+        });
+
+        try {
+            // Send the STOMP message
+            stompClient.send("/app/bid/submit", {}, bidMessage);
+            log(`Bid SENT: ${bidAmount} for Order ${orderId}. Waiting for confirmation...`, 'success');
+        } catch (e) {
+            log('Error sending bid: ' + e, 'error');
+        }
+    }
+</script>
+
+</body>
+</html>

@@ -1,5 +1,6 @@
 package com.spring.DeliveryApp.Service;
 
+
 import com.spring.DeliveryApp.auth.Entity.User;
 import com.spring.DeliveryApp.auth.Repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,17 +15,13 @@ public class UserService {
     private final UserRepository userRepository;
 
     @Transactional
-    public void updateUserAvailability(int userId, boolean isAvailable) {
-        Optional<User> userOpt = userRepository.findById(userId);
-
+    public void updateUserAvailability(String userId, boolean isAvailable) {
+        Optional<User> userOpt = userRepository.findUserByName(userId);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
-            // تحديث حالة التوفر
             user.setAvailable(isAvailable);
             userRepository.save(user);
-
-            System.out.println(String.format("🔄 تم تحديث حالة المستخدم %s إلى: %s",
+            System.out.println(String.format("🔄 User status updated for %s to: %s",
                     userId, isAvailable ? "ONLINE" : "OFFLINE"));
-        }
-    }
-}
+
+        }}}

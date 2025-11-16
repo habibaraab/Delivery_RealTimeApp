@@ -26,24 +26,18 @@ public class OrderController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    /**
-     * يستقبل طلب العميل لقبول عرض مزايدة محدد.
-     * @param acceptance معلومات الطلب والعرض المقبول
-     * @return OrderResponseDTO
-     */
+
     @PostMapping("/accept-bid")
     public ResponseEntity<OrderResponseDTO> acceptBid(@Valid @RequestBody BidAcceptanceDTO acceptance) {
         OrderResponseDTO response = biddingService.acceptBid(acceptance);
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * يستقبل طلب إنهاء الخدمة من تطبيق السائق (بعد التوصيل).
-     */
+
     @PostMapping("/complete-delivery")
     public ResponseEntity<String> completeDelivery(@Valid @RequestBody DeliveryCompletionDTO completionDto) {
         orderService.completeDelivery(completionDto);
-        return ResponseEntity.ok("تم إنهاء الطلب بنجاح. تم إرسال إشعار للعميل.");
+        return ResponseEntity.ok("Request completed successfully. Notification sent to client.");
     }
 
 }

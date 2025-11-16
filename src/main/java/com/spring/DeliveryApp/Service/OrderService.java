@@ -30,9 +30,8 @@ public class OrderService {
     public OrderResponseDTO createOrder(OrderRequestDTO request) {
 
         User customer = userRepository.findById(request.getCustomerId())
-                .orElseThrow(() -> new RuntimeException("العميل غير موجود: " + request.getCustomerId()));
+                .orElseThrow(() -> new RuntimeException("Customer not found: " + request.getCustomerId()));
 
-        // 1. تحويل DTO إلى Model وحفظه بالإحداثيات
         Order newOrder = new Order();
         newOrder.setCustomer(customer);
         newOrder.setPickupLatitude(request.getPickupLatitude());
@@ -42,7 +41,6 @@ public class OrderService {
         newOrder.setDeliveryFee(request.getDeliveryFee());
         newOrder.setStatus(OrderStatus.BIDDING);
 
-        // ربط محتويات الطلب (Items)
         List<OrderItem> items = request.getItems().stream()
                 .map(itemDto -> {
                     OrderItem item = new OrderItem();
@@ -57,19 +55,17 @@ public class OrderService {
         newOrder.setItems(items);
         Order savedOrder = orderRepository.save(newOrder);
 
-        // **المرحلة الثانية:** إشعار جميع السائقين المتاحين
+        // Notify all available drivers
         notifyAvailableDrivers(savedOrder);
 
         return convertToDto(savedOrder);
     }
 
-    // دالة مساعدة لتحويل Order إلى DTO
     public OrderResponseDTO convertToDto(Order order) {
         OrderResponseDTO dto = new OrderResponseDTO();
         dto.setId(order.getId());
         dto.setCustomerName(order.getCustomer().getName());
 
-        // نقل الإحداثيات إلى DTO
         dto.setPickupLatitude(order.getPickupLatitude());
         dto.setPickupLongitude(order.getPickupLongitude());
         dto.setDropoffLatitude(order.getDropoffLatitude());
@@ -81,7 +77,6 @@ public class OrderService {
             dto.setAssignedDriverName(order.getDriver().getName());
         }
 
-        // تحويل OrderItems إلى DTOs
         List<OrderItemDTO> itemDtos = order.getItems().stream()
                 .map(item -> new OrderItemDTO(
                         item.getProductName(),
@@ -94,58 +89,55 @@ public class OrderService {
         return dto;
     }
 
-    // دالة الإشعار الفوري
+    // Notification function
     public void notifyAvailableDrivers(Order order) {
-        // 1. جلب جميع السائقين المتاحين
         List<User> availableDrivers = userRepository.findAllByRole(Role.DRIVER).stream()
                 .filter(User::isAvailable)
                 .collect(Collectors.toList());
 
-        // 2. تحويل الطلب إلى DTO للبث
         OrderResponseDTO orderDto = convertToDto(order);
 
-        // 3. بث الطلب الجديد على مسار السائقين العام
-        // المسار: /topic/drivers/new-orders
+        //  /topic/drivers/new-orders
         messagingTemplate.convertAndSend("/topic/drivers/new-orders", orderDto);
 
-        System.out.println("✅ تم بث الطلب رقم " + order.getId() + " لـ " + availableDrivers.size() + " سائقين متاحين.");
+        System.out.println(" Order No. " + order.getId() + " to " + availableDrivers.size() + " available drivers.");
     }
 
     @Transactional
     public void completeDelivery(DeliveryCompletionDTO completionDto) {
 
         Order order = orderRepository.findById(completionDto.getOrderId())
-                .orElseThrow(() -> new RuntimeException("الطلب غير موجود."));
+                .orElseThrow(() -> new RuntimeException("Order not found."));
 
-        // 1. التحقق الأمني: يجب التأكد أن السائق الذي ينهي الطلب هو السائق المعين.
+        // 1. Security Check: Must ensure the driver completing the order is the assigned driver.
         if (order.getDriver() == null || !completionDto.getDriverId().equals(order.getDriver().getId())) {
-            throw new SecurityException("السائق غير مصرح له بإنهاء هذا الطلب.");
+            throw new SecurityException("Driver is not authorized to complete this order.");
         }
 
-        // 2. تحديث الحالة
+        // 2. Update status
         order.setStatus(OrderStatus.DELIVERED);
         orderRepository.save(order);
 
-        // 3. إرسال إشعارات WebSocket نهائية:
+        // 3. Send final WebSocket notifications:
 
-        // إشعار العميل: تم التوصيل (المسار: /user/{customerId}/queue/notifications)
-        String customerMsg = "تم توصيل طلبك رقم " + order.getId() + " بنجاح. شكراً لاستخدامك خدمتنا.";
+        // Customer Notification: Delivery successful (Path: /user/{customerId}/queue/notifications)
+        String customerMsg = "Your order  " + order.getId() + " has been delivered successfully. Thank you for using our service.";
         messagingTemplate.convertAndSendToUser(
-              String.valueOf(  order.getCustomer().getId()),
+                String.valueOf(  order.getCustomer().getId()),
                 "/queue/notifications",
                 customerMsg
         );
 
-        // إشعار السائق: تم إغلاق الطلب (المسار: /user/{driverId}/queue/notifications)
-        String driverMsg = "تم إنهاء الطلب رقم " + order.getId() + ". المبلغ المستحق: " + order.getAcceptedBid();
+        // Driver Notification: Order closed (Path: /user/{driverId}/queue/notifications)
+        String driverMsg = "Order No. " + order.getId() + " has been completed. Amount due: " + order.getAcceptedBid();
         messagingTemplate.convertAndSendToUser(
                 String.valueOf(  order.getDriver().getId()),
                 "/queue/notifications",
                 driverMsg
         );
 
-        // 4. خطوة إضافية: إشعار العميل بأن التتبع قد انتهى
-        // (هذا يوقف تطبيق العميل عن محاولة تحديث الخريطة)
+        // Additional step: Notify the customer that tracking has ended
+        // (This stops the client application from attempting to update the map)
         String trackingEndMsg = "TRACKING_END";
         messagingTemplate.convertAndSendToUser(
                 String.valueOf(order.getCustomer().getId()),
@@ -153,6 +145,6 @@ public class OrderService {
                 trackingEndMsg
         );
 
-        System.out.println("✅ تم إنهاء الطلب رقم " + order.getId() + " بنجاح.");
+        System.out.println("Order  " + order.getId() + " completed successfully.");
     }
 }

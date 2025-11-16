@@ -9,7 +9,6 @@ public class DeliveryCompletionDTO {
     @NotNull(message = "معرف الطلب مطلوب")
     private Long orderId;
 
-    @NotBlank(message = "معرف السائق مطلوب")
-    private String driverId;
+    private Integer driverId;
 
 }
